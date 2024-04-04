@@ -1,10 +1,11 @@
 import os
 import sqlite3
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
+from sqlalchemy.pool import NullPool
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
-load_dotenv()
+load_dotenv(override=True)
 
 def create_sqlite_database_client_one():
     # Connect to SQLite database
@@ -74,73 +75,71 @@ def create_mysql_database():
     # Create MySQL database using SQLAlchemy
     mysql_username = os.getenv('MYSQL_USERNAME')
     mysql_password = os.getenv('MYSQL_PASSWORD')
+    mysql_host = os.getenv('SERVER_HOST')
     mysql_port = int(os.getenv('SERVER_PORT'))
-    mysql_host = str(os.getenv('SERVER_HOST'))
     mysql_database = os.getenv('MYSQL_DATABASE')
 
-    connection_string = f'mysql://{mysql_username}:{mysql_password}@{mysql_host}:{mysql_port}'
-    engine = create_engine(connection_string)
+    connection_string = f'mysql+mysqlconnector://{mysql_username}:{mysql_password}@{mysql_host}:{mysql_port}/'
+    print(f'Using {connection_string}')
 
+    # Use NullPool for a connectionless connection (no connection pooling)
+    engine = create_engine(connection_string, poolclass=NullPool)
+
+    # Create a connection to execute SQL queries
     with engine.connect() as connection:
+        existing_databases = connection.execute(text("SHOW DATABASES;"))
+        existing_databases = [d[0] for d in existing_databases]
+        print(f'Existing databases: {existing_databases}')
 
-        connection.execute(f'CREATE DATABASE IF NOT EXISTS {mysql_database}')
+        if mysql_database not in existing_databases:
+            connection.execute(text(f"CREATE DATABASE {mysql_database};"))
 
-        connection.execute(f'USE {mysql_database}')
+        connection.execute(text(f"USE {mysql_database};"))
 
-        connection.execute('''
-        CREATE TABLE IF NOT EXISTS clients (
-            ID INT AUTO_INCREMENT PRIMARY KEY,
-            NAME VARCHAR(100),
-            HOST VARCHAR(100),
-            PORT INT
-        )
-        ''')
+        connection.execute(text("""
+            CREATE TABLE IF NOT EXISTS clients (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(100) NOT NULL,
+                host VARCHAR(100) NOT NULL,
+                port INT NOT NULL
+            );
+        """))
 
-        connection.execute('''
-        CREATE TABLE IF NOT EXISTS personnel (
-            ID INT AUTO_INCREMENT PRIMARY KEY,
-            NAME VARCHAR(100),
-            SURNAME VARCHAR(100),
-            SSN VARCHAR(11)
-        )
-        ''')
+        connection.execute(text("""
+            CREATE TABLE IF NOT EXISTS personnel (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(100) NOT NULL,
+                surname VARCHAR(100) NOT NULL,
+                ssn VARCHAR(11) NOT NULL
+            );
+        """))
 
-        connection.execute('''
-        CREATE TABLE IF NOT EXISTS messages (
-            ID INT AUTO_INCREMENT PRIMARY KEY,
-            CLIENT_ID INT,
-            PAYLOAD JSON,
-            FOREIGN KEY (CLIENT_ID) REFERENCES clients(ID)
-        )
-        ''')
+        connection.execute(text("""
+            CREATE TABLE IF NOT EXISTS messages (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                client_id INT NOT NULL,
+                payload JSON NOT NULL,
+                FOREIGN KEY (client_id) REFERENCES clients(id)
+            );
+        """))
 
-        mysql_clients_dummy_data = [
-            ('Client1', '127.0.0.1', 8000),
-            ('Client2', '127.0.0.1', 8001),
-            ('Client3', '127.0.0.1', 8002)
+        # Insert dummy data into personnel table
+        personnel_dummy_data = [
+            ('Bugra', 'Ercan', '313-88-9999'),
+            ('Sefa', 'Keles', '999-11-2222')
         ]
 
-        connection.execute('''
-        INSERT INTO clients (NAME, HOST, PORT)
-        VALUES (%s, %s, %s)
-        ''', mysql_clients_dummy_data)
+        for data in personnel_dummy_data:
+            connection.execute(text("INSERT INTO personnel (name, surname, ssn) VALUES (:name, :surname, :ssn);"), {"name": data[0], "surname": data[1], "ssn": data[2]})
 
-        mysql_personnel_dummy_data = [
-            ('John', 'Doe', '123-45-6789'),
-            ('Jane', 'Smith', '987-65-4321'),
-            ('Alice', 'Johnson', '456-78-9012'),
-            ('Bob', 'Williams', '789-01-2345'),
-            ('Eve', 'Brown', '012-34-5678')
-        ]
+        # Commit the transaction explicitly
+        connection.commit()
 
-        connection.execute('''
-        INSERT INTO personnel (NAME, SURNAME, SSN)
-        VALUES (%s, %s, %s)
-        ''', mysql_personnel_dummy_data)
+    engine.dispose()
 
 
 if __name__ == "__main__":
     create_sqlite_database_client_one()
     create_sqlite_database_client_two()
     create_mysql_database()
-    print("Dummy databases for client1 and client2 and server created.")
+    print("Dummy databases for client1 and client2 and Server created.")
