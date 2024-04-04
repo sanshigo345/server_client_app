@@ -26,9 +26,6 @@ def create_sqlite_database_client_one():
     sqlite_personel_dummy_data = [
         ('Michael', 'Davis', '111-22-3333'),
         ('Sarah', 'Wilson', '444-55-6666')
-        # ('David', 'Taylor', '777-88-9999'),
-        # ('Emily', 'Clark', '000-11-2222'),
-        # ('Matthew', 'Allen', '333-44-5555')
     ]
 
     cursor.executemany('''
@@ -59,7 +56,6 @@ def create_sqlite_database_client_two():
     sqlite_personel_dummy_data = [
         ('David', 'Taylor', '777-88-9999'),
         ('Emily', 'Clark', '000-11-2222')
-        # ('Matthew', 'Allen', '333-44-5555')
     ]
 
     cursor.executemany('''

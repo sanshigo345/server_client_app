@@ -1,4 +1,5 @@
 import socket
+import threading
 import os
 import sqlite3
 import json
@@ -22,6 +23,20 @@ cursor = conn.cursor()
 # Get server host and port from environment variables
 SERVER_HOST = os.getenv("SERVER_HOST")
 SERVER_PORT = int(os.getenv("SERVER_PORT"))
+
+def listen_to_server(client_socket):
+    try:
+        while True:
+            # Receive data from the server
+            data = client_socket.recv(1024).decode('utf-8')
+            if not data:
+                break
+            print("Server:", data)
+    except Exception as e:
+        print("Error:", e)
+    finally:
+        # Close the socket when the server stops sending data
+        client_socket.close()
 
 def save_personnel(personnel):
     name = personnel.get("name")
@@ -69,8 +84,6 @@ def handle_server_message(client_socket):
 
     except KeyboardInterrupt:
         print("Client shutting down")
-    finally:
-        client_socket.close()
 
 # Main function to start the client
 def main():
@@ -82,13 +95,14 @@ def main():
         client_socket.connect((SERVER_HOST, SERVER_PORT))
         print(f"Connected to server {SERVER_HOST}:{SERVER_PORT}")
 
-        # Start receiving messages from server
-        handle_server_message(client_socket)
+        listen_thread = threading.Thread(target=listen_to_server, args=(client_socket,))
+        listen_thread.start()
+
+        while True:
+            handle_server_message(client_socket)
 
     except KeyboardInterrupt:
         print("Client shutting down")
-    finally:
-        client_socket.close()
 
 if __name__ == "__main__":
     main()
