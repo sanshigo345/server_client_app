@@ -3,7 +3,7 @@ import socket
 import os
 from dotenv import load_dotenv
 import threading
-from sqlalchemy import create_engine, Column, Integer, String, ForeignKey
+from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, func
 from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy.exc import SQLAlchemyError
 from cryptography.fernet import Fernet
@@ -47,13 +47,28 @@ class Client(Base):
     
 def get_next_client_name(session):
     try:
-        # Query the clients table to get the count of existing clients
-        count = session.query(Client).count()
+        # Query the clients table to get the maximum client ID
+        max_id = session.query(func.max(Client.id)).scalar()
 
-        # Generate the client name based on the count
-        client_name = f"Client #{count + 1}"
+        # If there are no clients in the database, start with 1
+        if max_id is None:
+            return "Client #1"
 
-        return client_name
+        # Increment the maximum client ID to get the next client ID
+        next_id = max_id + 1
+
+        # Check if the next ID is already taken by a disconnected client
+        existing_client = session.query(Client).filter_by(id=next_id).first()
+
+        if existing_client is None:
+            return f"Client #{next_id}"
+        else:
+            # Find the first available ID for the next client
+            while True:
+                next_id += 1
+                existing_client = session.query(Client).filter_by(id=next_id).first()
+                if existing_client is None:
+                    return f"Client #{next_id}"
     except SQLAlchemyError as e:
         print(f"Error occurred while getting next client name: {e}")
         return None
@@ -79,6 +94,17 @@ def get_next_client_name(session):
 #         # Close the client socket
 #         client_socket.close()
 
+def accept_connections(server_socket):
+    while True:
+        # Accept incoming connection
+        client_socket, client_address = server_socket.accept()
+        print(f"Accepted connection from {client_address}")
+
+        # Create a new thread to handle the client
+        client_thread = threading.Thread(target=handle_client, args=(client_socket, client_address))
+        client_thread.start()
+
+
 # Function to handle client connections
 def handle_client(client_socket, client_address):
     print(f"Connection from {client_address}")
@@ -102,16 +128,32 @@ def handle_client(client_socket, client_address):
         session.commit()
 
         print(f"Added client {client_name} to the database.")
+
+        while True:
+            try:
+                data = client_socket.recv(1)
+                if not data:
+
+                    break
+            except ConnectionResetError:
+                print(f"Connection from {client_host} and {client_port} closed.")
+                break
+
     except SQLAlchemyError as e:
         session.rollback()
         print(f"Error occurred while adding client to the database: {e}")
     finally:
-        # Close the session
+        # Close the session and client socket
         session.close()
-
-    # # Close client socket
-    # client_socket.close()
-    # print(f"Connection with {client_address} closed")
+        client_socket.close()
+        print(f"Connection with {client_address} closed.")
+        try:
+            session.query(Client).filter_by(host=client_host, port=client_port).delete()
+            session.commit()
+            print(f"Removed client from the database: {client_host} and {client_port}")
+        except SQLAlchemyError as e:
+            session.rollback()
+            print(f"Error occurred while removing client from the database: {e}")
 
 # def send_specific_personnel_to_client():
 #     while True:
@@ -312,11 +354,8 @@ def main():
     server_socket.listen(5)
     print(f"Server listening on {SERVER_HOST}:{SERVER_PORT}")
 
-    # Accept incoming connection
-    client_socket, client_address = server_socket.accept()
-    # Create a new thread to handle the client
-    client_thread = threading.Thread(target=handle_client, args=(client_socket, client_address))
-    client_thread.start()
+    connection_thread = threading.Thread(target=accept_connections, args=(server_socket,))
+    connection_thread.start()
 
     try:
         while True:
@@ -351,13 +390,15 @@ def main():
                 print("Performing task 6...")
             elif task == "7":
                 print("Exiting...")
-                exit()
+                break
             else:
                 print("Invalid task number. Please enter a valid task number.")
 
     except KeyboardInterrupt:
         print("Server shutting down")
         server_socket.close()
-        
+
+    quit()
+
 if __name__ == "__main__":
     main()
