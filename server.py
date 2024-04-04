@@ -1,3 +1,4 @@
+import json
 import socket
 import os
 from dotenv import load_dotenv
@@ -67,11 +68,10 @@ def handle_client(client_socket, client_address):
     client_socket.close()
     print(f"Connection with {client_address} closed")
 
-# Main function to start the server
 def send_specific_personnel_to_client():
     while True:
         # Get personnel SSN from the user
-        ssn = input("Enter personnel's SSN: ")
+        ssn = input("Enter personnel's SSN (ex: 123-45-6789): ")
 
         # Get client name from the user
         client_name = input("Enter client's name: ")  # Assuming the client is identified by name
@@ -103,7 +103,7 @@ def send_specific_personnel_to_client():
             }
 
             send_message_to_client(message, client_host, client_port)
-            
+
             break
         else:
             if not personnel_data:
@@ -111,6 +111,155 @@ def send_specific_personnel_to_client():
             if not client_data:
                 print("Client not found. Please try again.")
 
+def send_specific_personnel_to_all_clients():
+    while True:
+        # Get personnel SSN from the user
+        ssn = input("Enter personnel's SSN (ex: 123-45-6789): ")
+
+        # Query the personnel table to fetch name and surname based on SSN
+        with engine.connect() as connection:
+            # Query the personnel table to fetch name and surname based on SSN
+            result = connection.execute("SELECT * FROM personnel WHERE SSN = ?", (ssn,))
+            personnel_data = result.fetchone()  # Fetch the first row
+
+        # Check if personnel exists
+        if personnel_data:
+            # Extract name and surname from the query result
+            personnel_name, personnel_surname = personnel_data
+
+            # Construct the message to send to all clients
+            message = {
+                "action": "SAVE",  # Assuming the action is to save the personnel
+                "personnel": {
+                    "name": personnel_name,
+                    "surname": personnel_surname,
+                    "ssn": ssn
+                }
+            }
+
+            # Query all clients from the database
+            result = connection.execute("SELECT * FROM clients")
+            all_clients = result.fetchall()
+
+            # Send the message to each client
+            for client_data in all_clients:
+                client_host, client_port = client_data
+
+                send_message_to_client(message, client_host, client_port)
+
+            break
+        else:
+            print("Personnel not found. Please try again.")
+
+def send_all_personnel_to_all_clients():
+    try:
+        # Query all personnel from the database
+        with engine.connect() as connection:
+            result = connection.execute("SELECT * FROM personnel")
+            all_personnel = result.fetchall()
+
+        all_personnel_json = json.dumps(all_personnel)
+        # Construct the message to send to clients
+        message = {
+            "action": "SAVE_ALL_PERSONNEL",
+            "personnel": all_personnel_json
+        }
+
+        # Get all clients from the database
+        with engine.connect() as connection:
+            result = connection.execute("SELECT * FROM clients")
+            all_clients = result.fetchall()
+
+        # Send the encrypted message to each client
+        for client_data in all_clients:
+            client_host, client_port = client_data
+            send_message_to_client(message, client_host, client_port)
+
+        print("All personnel sent successfully to all clients.")
+    except Exception as e:
+        print(f"Error sending personnel to clients: {e}")
+
+def delete_specific_personnel_from_client():
+    while True:
+        # Get personnel SSN from the user
+        ssn = input("Enter personnel's SSN (ex: 123-45-6789): ")
+
+        # Get client name from the user
+        client_name = input("Enter client's name: ")
+
+        # Query the client table to check if the client exists
+        with engine.connect() as connection:
+            # Query the client table to check if the client exists
+            result = connection.execute("SELECT * FROM clients WHERE NAME = ?", (client_name,))
+            client_data = result.fetchone()  # Fetch the first row
+
+        # Check if client exist
+        if client_data:
+
+            client_port, client_host = client_data
+
+            # Construct the message to send to the client
+            message = {
+                "action": "DELETE",
+                "personnel": {
+                    "ssn": ssn
+                }
+            }
+
+            # Send the message to the specific client
+            send_message_to_client(message, client_host, client_port)
+
+            print("Personnel deletion request sent to the client.")
+            break
+        else:
+            print("Client not found. Please try again.")
+
+def delete_specific_personnel_from_all_clients():
+    try:
+        # Get personnel SSN from the user
+        ssn = input("Enter personnel's SSN (ex: 123-45-6789): ")
+
+        message = {
+            "action": "DELETE",
+            "personnel": {
+                "ssn": ssn
+            }
+        }
+
+        with engine.connect() as connection:
+            result = connection.execute("SELECT * FROM clients")
+            all_clients = result.fetchall()
+
+        # Send the encrypted message to each client
+        for client_data in all_clients:
+            client_host, client_port = client_data
+            send_message_to_client(message, client_host, client_port)
+
+    except Exception as e:
+        print(f"Error deleting personnel from clients: {e}")
+
+def delete_all_personnel_from_all_clients():
+    try:
+        message = {
+            "action": "DELETE_ALL_PERSONNEL"
+        }
+
+        # Get all clients from the database
+        with engine.connect() as connection:
+            result = connection.execute("SELECT * FROM clients")
+            all_clients = result.fetchall()
+
+        # Send the message to each client
+        for client_data in all_clients:
+            client_host, client_port = client_data
+            send_message_to_client(message, client_host, client_port)
+
+        print("Packet sent to all clients")
+    except Exception as e:
+        print(f"Error sending personnel to clients: {e}")    
+
+
+# Main function to start the server
 def main():
     # Set up server socket
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -155,6 +304,9 @@ def main():
             elif task == "6":
                 # Perform task 6
                 print("Performing task 6...")
+            elif task == "7":
+                print("Exiting...")
+                exit()
             else:
                 print("Invalid task number. Please enter a valid task number.")
 

@@ -60,9 +60,9 @@ def handle_server_message(client_socket):
             personnel = message_data.get("personnel")
 
             # Perform action based on message content
-            if action == "save":
+            if action == "SAVE":
                 save_personnel(personnel)
-            elif action == "delete":
+            elif action == "DELETE":
                 delete_personnel(personnel)
             else:
                 print("Unknown action received from server.")
