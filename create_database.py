@@ -75,8 +75,8 @@ def create_mysql_database():
     # Create MySQL database using SQLAlchemy
     mysql_username = os.getenv('MYSQL_USERNAME')
     mysql_password = os.getenv('MYSQL_PASSWORD')
-    mysql_host = os.getenv('SERVER_HOST')
-    mysql_port = int(os.getenv('SERVER_PORT'))
+    mysql_host = os.getenv('MYSQL_HOST')
+    mysql_port = int(os.getenv('MYSQL_PORT'))
     mysql_database = os.getenv('MYSQL_DATABASE')
 
     connection_string = f'mysql+mysqlconnector://{mysql_username}:{mysql_password}@{mysql_host}:{mysql_port}/'

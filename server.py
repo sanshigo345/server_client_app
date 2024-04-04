@@ -5,9 +5,10 @@ from dotenv import load_dotenv
 import threading
 from sqlalchemy import create_engine, Column, Integer, String, ForeignKey
 from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.exc import SQLAlchemyError
 from cryptography.fernet import Fernet
 
-load_dotenv()
+load_dotenv(override=True)
 
 # Read the Fernet key from the file
 with open("fernet_key.key", "rb") as f:
@@ -23,258 +24,302 @@ MYSQL_HOST = os.getenv("MYSQL_HOST")
 MYSQL_PORT = os.getenv("MYSQL_PORT")
 MYSQL_DATABASE = os.getenv("MYSQL_DATABASE")
 
-DATABASE_URI = f"mysql:mysqlconnector//{MYSQL_USERNAME}:{MYSQL_PASSWORD}@{MYSQL_HOST}:{MYSQL_PORT}/{MYSQL_DATABASE}"
+SERVER_HOST = os.getenv("SERVER_HOST")
+SERVER_PORT = int(os.getenv("SERVER_PORT"))
 
-if MYSQL_PORT is None or MYSQL_HOST is None or MYSQL_DATABASE is None:
-    raise ValueError("Server configuration probably is wrong. Please check it in the .env file.")
+connection_string = f"mysql+mysqlconnector://{MYSQL_USERNAME}:{MYSQL_PASSWORD}@{MYSQL_HOST}:{MYSQL_PORT}/{MYSQL_DATABASE}"
 
 # Create SQLAlchemy engine and session
-engine = create_engine(DATABASE_URI)
+engine = create_engine(connection_string)
 Session = sessionmaker(bind=engine)
 Base = declarative_base()
 
-def send_message_to_client(message, client_host, client_port):
+class Client(Base):
+    __tablename__ = 'clients'
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String(100), nullable=False)
+    host = Column(String(100), nullable=False)
+    port = Column(Integer, nullable=False)
+
+    def __repr__(self):
+        return f"<Client(name={self.name}, host={self.host}, port={self.port})>"
+    
+def get_next_client_name(session):
     try:
-        # Create a socket object
-        client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        # Query the clients table to get the count of existing clients
+        count = session.query(Client).count()
+
+        # Generate the client name based on the count
+        client_name = f"Client #{count + 1}"
+
+        return client_name
+    except SQLAlchemyError as e:
+        print(f"Error occurred while getting next client name: {e}")
+        return None
+
+# def send_message_to_client(message, client_host, client_port):
+#     try:
+#         # Create a socket object
+#         client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         
-        # Connect to the client
-        client_socket.connect((client_host, client_port))
+#         # Connect to the client
+#         client_socket.connect((client_host, client_port))
 
-        # Encrypt the message with Fernet
-        encrypted_message = fernet.encrypt(message.encode())
+#         # Encrypt the message with Fernet
+#         encrypted_message = fernet.encrypt(message.encode())
 
-        # Send the encrypted message to the client
-        client_socket.sendall(encrypted_message)
+#         # Send the encrypted message to the client
+#         client_socket.sendall(encrypted_message)
 
-        print("Message sent successfully to client.")
-    except Exception as e:
-        print(f"Error sending message to client: {e}")
-    finally:
-        # Close the client socket
-        client_socket.close()
+#         print("Message sent successfully to client.")
+#     except Exception as e:
+#         print(f"Error sending message to client: {e}")
+#     finally:
+#         # Close the client socket
+#         client_socket.close()
 
 # Function to handle client connections
 def handle_client(client_socket, client_address):
     print(f"Connection from {client_address}")
 
-    # Receive data from client
-    data = client_socket.recv(1024).decode()
-    print(f"Received data from client {client_address}: {data}")
+    client_host = client_address[0]
+    client_port = client_address[1]
 
-    # Process data (implement logic based on requirements)
+    print(f"Connection from {client_host} and {client_port}")
 
-    # Close client socket
-    client_socket.close()
-    print(f"Connection with {client_address} closed")
+    session = Session()
 
-def send_specific_personnel_to_client():
-    while True:
-        # Get personnel SSN from the user
-        ssn = input("Enter personnel's SSN (ex: 123-45-6789): ")
-
-        # Get client name from the user
-        client_name = input("Enter client's name: ")  # Assuming the client is identified by name
-
-        # Query the personnel table to fetch name and surname based on SSN
-        with engine.connect() as connection:
-            # Query the personnel table to fetch name and surname based on SSN
-            result = connection.execute("SELECT * FROM personnel WHERE SSN = ?", (ssn,))
-            personnel_data = result.fetchone()  # Fetch the first row
-
-            # Query the client table to check if the client exists
-            result = connection.execute("SELECT * FROM clients WHERE NAME = ?", (client_name,))
-            client_data = result.fetchone()  # Fetch the first row
-
-        # Check if both personnel and client exist
-        if personnel_data and client_data:
-            # Extract name and surname from the query result
-            personnel_name, personnel_surname = personnel_data
-            client_port, client_host = client_data
-
-            # Construct the message to send to the client
-            message = {
-                "action": "SAVE",  # Assuming the action is to save the personnel
-                "personnel": {
-                    "name": personnel_name,
-                    "surname": personnel_surname,
-                    "ssn": ssn
-                }
-            }
-
-            send_message_to_client(message, client_host, client_port)
-
-            break
-        else:
-            if not personnel_data:
-                print("Personnel not found. Please try again.")
-            if not client_data:
-                print("Client not found. Please try again.")
-
-def send_specific_personnel_to_all_clients():
-    while True:
-        # Get personnel SSN from the user
-        ssn = input("Enter personnel's SSN (ex: 123-45-6789): ")
-
-        # Query the personnel table to fetch name and surname based on SSN
-        with engine.connect() as connection:
-            # Query the personnel table to fetch name and surname based on SSN
-            result = connection.execute("SELECT * FROM personnel WHERE SSN = ?", (ssn,))
-            personnel_data = result.fetchone()  # Fetch the first row
-
-        # Check if personnel exists
-        if personnel_data:
-            # Extract name and surname from the query result
-            personnel_name, personnel_surname = personnel_data
-
-            # Construct the message to send to all clients
-            message = {
-                "action": "SAVE",  # Assuming the action is to save the personnel
-                "personnel": {
-                    "name": personnel_name,
-                    "surname": personnel_surname,
-                    "ssn": ssn
-                }
-            }
-
-            # Query all clients from the database
-            result = connection.execute("SELECT * FROM clients")
-            all_clients = result.fetchall()
-
-            # Send the message to each client
-            for client_data in all_clients:
-                client_host, client_port = client_data
-
-                send_message_to_client(message, client_host, client_port)
-
-            break
-        else:
-            print("Personnel not found. Please try again.")
-
-def send_all_personnel_to_all_clients():
     try:
-        # Query all personnel from the database
-        with engine.connect() as connection:
-            result = connection.execute("SELECT * FROM personnel")
-            all_personnel = result.fetchall()
+        # Get the next client name
+        client_name = get_next_client_name(session)
 
-        all_personnel_json = json.dumps(all_personnel)
-        # Construct the message to send to clients
-        message = {
-            "action": "SAVE_ALL_PERSONNEL",
-            "personnel": all_personnel_json
-        }
+        # Create a new Client object
+        new_client = Client(name=client_name, host=client_host, port=client_port)
 
-        # Get all clients from the database
-        with engine.connect() as connection:
-            result = connection.execute("SELECT * FROM clients")
-            all_clients = result.fetchall()
+        # Add the new client to the database session
+        session.add(new_client)
+        session.commit()
 
-        # Send the encrypted message to each client
-        for client_data in all_clients:
-            client_host, client_port = client_data
-            send_message_to_client(message, client_host, client_port)
+        print(f"Added client {client_name} to the database.")
+    except SQLAlchemyError as e:
+        session.rollback()
+        print(f"Error occurred while adding client to the database: {e}")
+    finally:
+        # Close the session
+        session.close()
 
-        print("All personnel sent successfully to all clients.")
-    except Exception as e:
-        print(f"Error sending personnel to clients: {e}")
+    # # Close client socket
+    # client_socket.close()
+    # print(f"Connection with {client_address} closed")
 
-def delete_specific_personnel_from_client():
-    while True:
-        # Get personnel SSN from the user
-        ssn = input("Enter personnel's SSN (ex: 123-45-6789): ")
+# def send_specific_personnel_to_client():
+#     while True:
+#         # Get personnel SSN from the user
+#         ssn = input("Enter personnel's SSN (ex: 123-45-6789): ")
 
-        # Get client name from the user
-        client_name = input("Enter client's name: ")
+#         # Get client name from the user
+#         client_name = input("Enter client's name: ")  # Assuming the client is identified by name
 
-        # Query the client table to check if the client exists
-        with engine.connect() as connection:
-            # Query the client table to check if the client exists
-            result = connection.execute("SELECT * FROM clients WHERE NAME = ?", (client_name,))
-            client_data = result.fetchone()  # Fetch the first row
+#         # Query the personnel table to fetch name and surname based on SSN
+#         with engine.connect() as connection:
+#             # Query the personnel table to fetch name and surname based on SSN
+#             result = connection.execute("SELECT * FROM personnel WHERE SSN = ?", (ssn,))
+#             personnel_data = result.fetchone()  # Fetch the first row
 
-        # Check if client exist
-        if client_data:
+#             # Query the client table to check if the client exists
+#             result = connection.execute("SELECT * FROM clients WHERE NAME = ?", (client_name,))
+#             client_data = result.fetchone()  # Fetch the first row
 
-            client_port, client_host = client_data
+#         # Check if both personnel and client exist
+#         if personnel_data and client_data:
+#             # Extract name and surname from the query result
+#             personnel_name, personnel_surname = personnel_data
+#             client_port, client_host = client_data
 
-            # Construct the message to send to the client
-            message = {
-                "action": "DELETE",
-                "personnel": {
-                    "ssn": ssn
-                }
-            }
+#             # Construct the message to send to the client
+#             message = {
+#                 "action": "SAVE",  # Assuming the action is to save the personnel
+#                 "personnel": {
+#                     "name": personnel_name,
+#                     "surname": personnel_surname,
+#                     "ssn": ssn
+#                 }
+#             }
 
-            # Send the message to the specific client
-            send_message_to_client(message, client_host, client_port)
+#             send_message_to_client(message, client_host, client_port)
 
-            print("Personnel deletion request sent to the client.")
-            break
-        else:
-            print("Client not found. Please try again.")
+#             break
+#         else:
+#             if not personnel_data:
+#                 print("Personnel not found. Please try again.")
+#             if not client_data:
+#                 print("Client not found. Please try again.")
 
-def delete_specific_personnel_from_all_clients():
-    try:
-        # Get personnel SSN from the user
-        ssn = input("Enter personnel's SSN (ex: 123-45-6789): ")
+# def send_specific_personnel_to_all_clients():
+#     while True:
+#         # Get personnel SSN from the user
+#         ssn = input("Enter personnel's SSN (ex: 123-45-6789): ")
 
-        message = {
-            "action": "DELETE",
-            "personnel": {
-                "ssn": ssn
-            }
-        }
+#         # Query the personnel table to fetch name and surname based on SSN
+#         with engine.connect() as connection:
+#             # Query the personnel table to fetch name and surname based on SSN
+#             result = connection.execute("SELECT * FROM personnel WHERE SSN = ?", (ssn,))
+#             personnel_data = result.fetchone()  # Fetch the first row
 
-        with engine.connect() as connection:
-            result = connection.execute("SELECT * FROM clients")
-            all_clients = result.fetchall()
+#         # Check if personnel exists
+#         if personnel_data:
+#             # Extract name and surname from the query result
+#             personnel_name, personnel_surname = personnel_data
 
-        # Send the encrypted message to each client
-        for client_data in all_clients:
-            client_host, client_port = client_data
-            send_message_to_client(message, client_host, client_port)
+#             # Construct the message to send to all clients
+#             message = {
+#                 "action": "SAVE",  # Assuming the action is to save the personnel
+#                 "personnel": {
+#                     "name": personnel_name,
+#                     "surname": personnel_surname,
+#                     "ssn": ssn
+#                 }
+#             }
 
-    except Exception as e:
-        print(f"Error deleting personnel from clients: {e}")
+#             # Query all clients from the database
+#             result = connection.execute("SELECT * FROM clients")
+#             all_clients = result.fetchall()
 
-def delete_all_personnel_from_all_clients():
-    try:
-        message = {
-            "action": "DELETE_ALL_PERSONNEL"
-        }
+#             # Send the message to each client
+#             for client_data in all_clients:
+#                 client_host, client_port = client_data
 
-        # Get all clients from the database
-        with engine.connect() as connection:
-            result = connection.execute("SELECT * FROM clients")
-            all_clients = result.fetchall()
+#                 send_message_to_client(message, client_host, client_port)
 
-        # Send the message to each client
-        for client_data in all_clients:
-            client_host, client_port = client_data
-            send_message_to_client(message, client_host, client_port)
+#             break
+#         else:
+#             print("Personnel not found. Please try again.")
 
-        print("Packet sent to all clients")
-    except Exception as e:
-        print(f"Error sending personnel to clients: {e}")    
+# def send_all_personnel_to_all_clients():
+#     try:
+#         # Query all personnel from the database
+#         with engine.connect() as connection:
+#             result = connection.execute("SELECT * FROM personnel")
+#             all_personnel = result.fetchall()
+
+#         all_personnel_json = json.dumps(all_personnel)
+#         # Construct the message to send to clients
+#         message = {
+#             "action": "SAVE_ALL_PERSONNEL",
+#             "personnel": all_personnel_json
+#         }
+
+#         # Get all clients from the database
+#         with engine.connect() as connection:
+#             result = connection.execute("SELECT * FROM clients")
+#             all_clients = result.fetchall()
+
+#         # Send the encrypted message to each client
+#         for client_data in all_clients:
+#             client_host, client_port = client_data
+#             send_message_to_client(message, client_host, client_port)
+
+#         print("All personnel sent successfully to all clients.")
+#     except Exception as e:
+#         print(f"Error sending personnel to clients: {e}")
+
+# def delete_specific_personnel_from_client():
+#     while True:
+#         # Get personnel SSN from the user
+#         ssn = input("Enter personnel's SSN (ex: 123-45-6789): ")
+
+#         # Get client name from the user
+#         client_name = input("Enter client's name: ")
+
+#         # Query the client table to check if the client exists
+#         with engine.connect() as connection:
+#             # Query the client table to check if the client exists
+#             result = connection.execute("SELECT * FROM clients WHERE NAME = ?", (client_name,))
+#             client_data = result.fetchone()  # Fetch the first row
+
+#         # Check if client exist
+#         if client_data:
+
+#             client_port, client_host = client_data
+
+#             # Construct the message to send to the client
+#             message = {
+#                 "action": "DELETE",
+#                 "personnel": {
+#                     "ssn": ssn
+#                 }
+#             }
+
+#             # Send the message to the specific client
+#             send_message_to_client(message, client_host, client_port)
+
+#             print("Personnel deletion request sent to the client.")
+#             break
+#         else:
+#             print("Client not found. Please try again.")
+
+# def delete_specific_personnel_from_all_clients():
+#     try:
+#         # Get personnel SSN from the user
+#         ssn = input("Enter personnel's SSN (ex: 123-45-6789): ")
+
+#         message = {
+#             "action": "DELETE",
+#             "personnel": {
+#                 "ssn": ssn
+#             }
+#         }
+
+#         with engine.connect() as connection:
+#             result = connection.execute("SELECT * FROM clients")
+#             all_clients = result.fetchall()
+
+#         # Send the encrypted message to each client
+#         for client_data in all_clients:
+#             client_host, client_port = client_data
+#             send_message_to_client(message, client_host, client_port)
+
+#     except Exception as e:
+#         print(f"Error deleting personnel from clients: {e}")
+
+# def delete_all_personnel_from_all_clients():
+#     try:
+#         message = {
+#             "action": "DELETE_ALL_PERSONNEL"
+#         }
+
+#         # Get all clients from the database
+#         with engine.connect() as connection:
+#             result = connection.execute("SELECT * FROM clients")
+#             all_clients = result.fetchall()
+
+#         # Send the message to each client
+#         for client_data in all_clients:
+#             client_host, client_port = client_data
+#             send_message_to_client(message, client_host, client_port)
+
+#         print("Packet sent to all clients")
+#     except Exception as e:
+#         print(f"Error sending personnel to clients: {e}")    
 
 
 # Main function to start the server
 def main():
     # Set up server socket
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_socket.bind((MYSQL_HOST, MYSQL_PORT))
+    server_socket.bind((SERVER_HOST, SERVER_PORT))
     server_socket.listen(5)
-    print(f"Server listening on {MYSQL_HOST}:{MYSQL_PORT}")
+    print(f"Server listening on {SERVER_HOST}:{SERVER_PORT}")
+
+    # Accept incoming connection
+    client_socket, client_address = server_socket.accept()
+    # Create a new thread to handle the client
+    client_thread = threading.Thread(target=handle_client, args=(client_socket, client_address))
+    client_thread.start()
 
     try:
         while True:
-            # Accept incoming connection
-            client_socket, client_address = server_socket.accept()
-            # Create a new thread to handle the client
-            client_thread = threading.Thread(target=handle_client, args=(client_socket, client_address))
-            client_thread.start()
-
             print("Available tasks:")
             print("1. Send a specific personnel to a specific client.")
             print("2. Send a specific personnel to all clients.")

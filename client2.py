@@ -20,7 +20,7 @@ conn = sqlite3.connect(CLIENT_DATABASE_FILE)
 cursor = conn.cursor()
 
 # Get server host and port from environment variables
-SERVER_HOST = str(os.getenv("SERVER_HOST"))
+SERVER_HOST = os.getenv("SERVER_HOST")
 SERVER_PORT = int(os.getenv("SERVER_PORT"))
 
 def save_personnel(personnel):
