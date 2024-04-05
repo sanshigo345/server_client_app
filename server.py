@@ -76,7 +76,6 @@ def get_next_client_name(session):
             return "Client #1"
 
         next_id = max_id + 1
-
         existing_client = session.query(Client).filter_by(id=next_id).first()
 
         if existing_client is None:
@@ -101,7 +100,6 @@ def send_message_to_client(message_json, client_host, client_port):
                 client_socket.send(encrypted_message)
                 print(f"Message sent successfully to {client_host}:{client_port}")
 
-                print("Message saved to database.")
             except Exception as e:
                 print(f"Error sending message to {client_host}:{client_port}: {e}")    
 
@@ -117,7 +115,7 @@ def handle_client(client_socket, client_address):
     client_host = client_address[0]
     client_port = client_address[1]
 
-    print(f"Connection from {client_host} and {client_port}")
+    print(f"New connection from {client_host}:{client_port}")
     connected_clients.append((client_address[0], client_address[1], client_socket))
 
     session = Session()
@@ -130,16 +128,13 @@ def handle_client(client_socket, client_address):
         session.add(new_client)
         session.commit()
 
-        print(f"Added client {client_name} to the database.")
-
         while True:
             try:
                 data = client_socket.recv(1)
                 if not data:
-                    print("client disconnected")
+                    print(f"Client {client_host}:{client_port} disconnected")
                     break
             except ConnectionResetError:
-                print(f"Connection from {client_host} and {client_port} closed.")
                 break
 
     except SQLAlchemyError as e:
@@ -150,10 +145,11 @@ def handle_client(client_socket, client_address):
         client_socket.close()
         connected_clients.remove((client_address[0], client_address[1], client_socket))
         print(f"Connection with {client_address} closed.")
+
         try:
             session.query(Client).filter_by(host=client_host, port=client_port).delete()
             session.commit()
-            print(f"Removed client from the database: {client_host} and {client_port}")
+            
         except SQLAlchemyError as e:
             session.rollback()
             print(f"Error occurred while removing client from the database: {e}")

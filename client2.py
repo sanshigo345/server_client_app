@@ -25,11 +25,10 @@ def listen_to_server(client_socket):
             if not encrypted_message:
                 print('Disconnected from server')
                 break
+
             decrypted_message = cipher.decrypt(encrypted_message)
             decrypted_message_str = decrypted_message.decode()
             message_dict = json.loads(decrypted_message_str)
-
-            print(f"message_dict {message_dict}")
 
             action = message_dict.get("action")
             personnel = message_dict.get("personnel")
