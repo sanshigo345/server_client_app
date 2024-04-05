@@ -13,27 +13,31 @@ Ensure you have Python and MySQL installed on your system.
 ### Installation
 
 Install the required dependencies by running the following command in your Python environment:
-- ```pip install -r requirements.txt```
+
+- `pip install -r requirements.txt`
 
 Set up your MySQL server and configure the .env file with the appropriate credentials.
 
 ## Usage
 
 Execute the following command to create empty or dummy databases for both the server and clients:
-- ```python create_database_and_key.py```
+
+- `python create_database_and_key.py`
 
 Start the server by running:
-- ```python server.py```
+
+- `python server.py`
 
 Run the client scripts in separate terminals:
-- ```python client1.py```
-and 
-- ```python client2.py```
+
+- `python client1.py`
+- `python client2.py`
 
 ## Features
 
 - The server allows interaction with clients through various task options provided in server.py.
-0. Display database
+
+0. Display server's database.
 1. Send a specific personnel to a specific client.
 2. Send a specific personnel to all clients.
 3. Send all personnel to all clients.
@@ -42,8 +46,8 @@ and
 6. Delete all personnel from all clients.
 7. Exit.
 
+- The clients accept these messages and manage their databases accordingly. Client tasks include:
 
-- The clients accepts these messages and manage their databases accordingly. Client tasks include:
 1. Save a personnel after receiving a save message from the server.
 2. Delete a personnel after receiving a delete message from the server.
 
