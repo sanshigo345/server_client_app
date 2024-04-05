@@ -3,7 +3,7 @@ import socket
 import os
 from dotenv import load_dotenv
 import threading
-from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, func, text, JSON
+from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, func, JSON
 from sqlalchemy.orm import sessionmaker, declarative_base, relationship
 from sqlalchemy.exc import SQLAlchemyError
 from cryptography.fernet import Fernet
@@ -149,10 +149,32 @@ def handle_client(client_socket, client_address):
         try:
             session.query(Client).filter_by(host=client_host, port=client_port).delete()
             session.commit()
-            
+
         except SQLAlchemyError as e:
             session.rollback()
             print(f"Error occurred while removing client from the database: {e}")
+
+def display_table(table):
+    session = Session()
+    if table == 1:
+        clients = session.query(Client).all()
+        print("Clients:")
+        for client in clients:
+            print(f"ID: {client.id}, Name: {client.name}, Host: {client.host}, Port: {client.port}")
+    elif table == 2:
+        personnel = session.query(Personnel).all()
+        print("Personnel:")
+        for person in personnel:
+            print(f"ID: {person.id}, Name: {person.name}, Surname: {person.surname}, SSN: {person.ssn}")
+    elif table == 3:
+        messages = session.query(Message).all()
+        print("Messages:")
+        for message in messages:
+            print(f"ID: {message.id}, Client ID: {message.client_id}, Payload: {message.payload}")
+    else:
+        print("Invalid number. Please enter a valid number.")
+
+    session.close()
 
 def send_specific_personnel_to_client():
     while True:
@@ -410,6 +432,7 @@ def main():
     try:
         while True:
             print("Available tasks:")
+            print("0. Check personnel table or clients table or messages table")
             print("1. Send a specific personnel to a specific client.")
             print("2. Send a specific personnel to all clients.")
             print("3. Send all personnel to all clients.")
@@ -418,10 +441,19 @@ def main():
             print("6. Delete all personnel from all clients.")
             print("7. Exit.")
 
-            task = input("Enter the task number you want to perform (0, 1, 2, etc.): ")
+            task = input("Enter the number you want to perform (0, 1, 2, etc.): ")
 
             if task == "0":
-                print("show tables")
+                while True:
+                    print("Enter 0 to exit to main menu")
+                    print("Enter 1 to show clients table")
+                    print("Enter 2 to show personnel table")
+                    print("Enter 3 to show messages table")
+                    choice = int(input("Enter the number you want to perform (0, 1, 2, 3): "))
+                    if choice == 0:
+                        break
+                    else:
+                        display_table(choice)
             elif task == "1":
                 print("Performing send a specific personnel to a specific client.")
                 send_specific_personnel_to_client()
@@ -444,7 +476,7 @@ def main():
                 print("Exiting...")
                 break
             else:
-                print("Invalid task number. Please enter a valid task number.")
+                print("Invalid number. Please enter a valid number.")
 
     except KeyboardInterrupt:
         print("Server shutting down")
