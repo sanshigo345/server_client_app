@@ -44,6 +44,8 @@ class Client(Base):
     host = Column(String(100), nullable=False)
     port = Column(Integer, nullable=False)
 
+    messages = relationship("Message", back_populates="client")
+
     def __repr__(self):
         return f"<Client(name={self.name}, host={self.host}, port={self.port})>"
 
@@ -58,17 +60,17 @@ class Personnel(Base):
     def __repr__(self):
         return f"<Personnel(name={self.name}, surname={self.surname}, ssn={self.ssn})>"
 
-# class Message(Base):
-#     __tablename__ = 'messages'
+class Message(Base):
+    __tablename__ = 'messages'
 
-#     id = Column(Integer, primary_key=True, autoincrement=True)
-#     client_id = Column(Integer, ForeignKey('clients.id'), nullable=False)
-#     payload = Column(JSON, nullable=False)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    client_id = Column(Integer, ForeignKey('clients.id'), nullable=False)
+    payload = Column(JSON, nullable=False)
 
-#     client = relationship("Client", back_populates="messages")
+    client = relationship("Client", back_populates="messages")
 
-#     def __repr__(self):
-#         return f"<Message(id={self.id}, client_id={self.client_id}, payload={self.payload})>"
+    def __repr__(self):
+        return f"<Message(id={self.id}, client_id={self.client_id}, payload={self.payload})>"
 
 def get_next_client_name(session):
     try:
@@ -98,15 +100,16 @@ def get_next_client_name(session):
         print(f"Error occurred while getting next client name: {e}")
         return None
 
-def send_message_to_client(message, client_host, client_port):
+def send_message_to_client(message_json, client_host, client_port):
 
     for client_ip, client_port_number, client_socket in connected_clients:
         if client_ip == client_host and client_port_number == client_port:
             try:
-                message_json = json.dumps(message)
                 encrypted_message = fernet.encrypt(message_json.encode())
                 client_socket.send(encrypted_message)
                 print(f"Message sent successfully to {client_host}:{client_port}")
+
+                print("Message saved to database.")
             except Exception as e:
                 print(f"Error sending message to {client_host}:{client_port}: {e}")    
 
@@ -196,7 +199,12 @@ def send_specific_personnel_to_client():
                     }
                 }
 
-                send_message_to_client(message, client_host, client_port)
+                message_json = json.dumps(message)
+                new_message = Message(client_id=client.id, payload=message_json)
+                session.add(new_message)
+                session.commit()
+
+                send_message_to_client(message_json, client_host, client_port)
 
                 print(f"Used {personnel_name} {personnel_surname} and {client_port} {client_host}")
 
@@ -234,13 +242,19 @@ def send_specific_personnel_to_all_clients():
                     }
                 }
 
+                message_json = json.dumps(message)
+
                 all_clients = session.query(Client).all()
 
                 for client in all_clients:
                     client_host = client.host
                     client_port = client.port
 
-                    send_message_to_client(message, client_host, client_port)
+                    new_message = Message(client_id=client.id, payload=message_json)
+                    session.add(new_message)
+                    session.commit()
+
+                    send_message_to_client(message_json, client_host, client_port)
 
                 break
             else:
@@ -273,17 +287,23 @@ def send_all_personnel_to_all_clients():
             }
             message["personnel"].append(personnel_info)
 
+        message_json = json.dumps(message)
+
         for client in all_clients:
             client_host = client.host
             client_port = client.port
-            send_message_to_client(message, client_host, client_port)
+
+            new_message = Message(client_id=client.id, payload=message_json)
+            session.add(new_message)
+            session.commit()
+
+            send_message_to_client(message_json, client_host, client_port)
 
     except SQLAlchemyError as e:
         session.rollback()
         print(f"Error occurred while getting client/personnel from the database: {e}")
     finally:
         session.close()
-
 
 def delete_specific_personnel_from_client():
     while True:
@@ -308,7 +328,12 @@ def delete_specific_personnel_from_client():
                     }
                 }
 
-                send_message_to_client(message, client_host, client_port)
+                message_json = json.dumps(message)
+                new_message = Message(client_id=client.id, payload=message_json)
+                session.add(new_message)
+                session.commit()
+
+                send_message_to_client(message_json, client_host, client_port)
 
                 break
             else:
@@ -340,13 +365,19 @@ def delete_specific_personnel_from_all_clients():
                     }
                 }
 
+                message_json = json.dumps(message)
+
                 all_clients = session.query(Client).all()
 
                 for client in all_clients:
                     client_host = client.host
                     client_port = client.port
 
-                    send_message_to_client(message, client_host, client_port)
+                    new_message = Message(client_id=client.id, payload=message_json)
+                    session.add(new_message)
+                    session.commit()
+
+                    send_message_to_client(message_json, client_host, client_port)
 
                 break
             else:
@@ -367,12 +398,19 @@ def delete_all_personnel_from_all_clients():
             "action": "DELETE_ALL"
         }
 
+        message_json = json.dumps(message)
+
         all_clients = session.query(Client).all()
 
         for client in all_clients:
             client_host = client.host
             client_port = client.port
-            send_message_to_client(message, client_host, client_port)
+
+            new_message = Message(client_id=client.id, payload=message_json)
+            session.add(new_message)
+            session.commit()
+
+            send_message_to_client(message_json, client_host, client_port)
 
     except SQLAlchemyError as e:
         session.rollback()

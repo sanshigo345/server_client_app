@@ -4,7 +4,6 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.pool import NullPool
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
 load_dotenv(override=True)
 
 def create_sqlite_database_client_one():
@@ -21,17 +20,6 @@ def create_sqlite_database_client_one():
         SSN TEXT
     )
     ''')
-
-    # Insert dummy data into the personnel table
-    sqlite_personel_dummy_data = [
-        ('Michael', 'Davis', '111-22-3333'),
-        ('Sarah', 'Wilson', '444-55-6666')
-    ]
-
-    cursor.executemany('''
-    INSERT INTO personnel (NAME, SURNAME, SSN)
-    VALUES (?, ?, ?)
-    ''', sqlite_personel_dummy_data)
 
     # Commit changes and close connection
     conn.commit()
@@ -51,17 +39,6 @@ def create_sqlite_database_client_two():
         SSN TEXT
     )
     ''')
-
-    # Insert dummy data into the personnel table
-    sqlite_personel_dummy_data = [
-        ('David', 'Taylor', '777-88-9999'),
-        ('Emily', 'Clark', '000-11-2222')
-    ]
-
-    cursor.executemany('''
-    INSERT INTO personnel (NAME, SURNAME, SSN)
-    VALUES (?, ?, ?)
-    ''', sqlite_personel_dummy_data)
 
     # Commit changes and close connection
     conn.commit()
@@ -133,9 +110,8 @@ def create_mysql_database():
 
     engine.dispose()
 
-
 if __name__ == "__main__":
     create_sqlite_database_client_one()
     create_sqlite_database_client_two()
     create_mysql_database()
-    print("Dummy databases for client1 and client2 and Server created.")
+    print("Databases for Server, client1 and client2 created.")
