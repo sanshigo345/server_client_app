@@ -28,7 +28,6 @@ def listen_to_server(client_socket):
             if not encrypted_message:
                 print('Disconnected from server')
                 break
-            # print("Server:", data)
             decrypted_message = cipher.decrypt(encrypted_message)
             decrypted_message_str = decrypted_message.decode()
             message_dict = json.loads(decrypted_message_str)
@@ -38,12 +37,22 @@ def listen_to_server(client_socket):
             action = message_dict.get("action")
             personnel = message_dict.get("personnel")
 
-            print(f"action : {action} and {personnel}")
             # Perform action based on message content
             if action == "SAVE":
                 save_personnel(personnel)
             elif action == "DELETE":
                 delete_personnel(personnel)
+                print("Personnel deleted successfully.")
+            elif action == "SAVE_ALL":
+                for personnel in message_dict["personnel"]:
+                    save_personnel(personnel)
+            elif action == "DELETE_ALL":
+                conn = sqlite3.connect(CLIENT_DATABASE_FILE)
+                cursor = conn.cursor()
+                cursor.execute("DELETE FROM personnel")
+                conn.commit()
+                conn.close()     
+                print("All Personnel deleted successfully.")           
             else:
                 print("Unknown action received from server.")
 
@@ -64,46 +73,15 @@ def save_personnel(personnel):
     # Insert a new personnel record into the database
     cursor.execute("INSERT INTO personnel (NAME, SURNAME, SSN) VALUES (?, ?, ?)", (name, surname, ssn))
     conn.commit()
-    print("Personnel saved successfully.")
+    print(f"Personnel {name} {surname} saved successfully.")
 
 def delete_personnel(personnel):
     ssn = personnel.get("ssn")
-    # Delete a personnel record from the database based on SSN
+
+    conn = sqlite3.connect(CLIENT_DATABASE_FILE)
+    cursor = conn.cursor()
     cursor.execute("DELETE FROM personnel WHERE SSN = ?", (ssn,))
     conn.commit()
-    print("Personnel deleted successfully.")
-
-# Function to handle server messages
-def handle_server_message(client_socket):
-    try:
-        while True:
-            # Receive encrypted message from server
-            encrypted_message = client_socket.recv(1024)
-            if not encrypted_message:
-                print('Disconnected from server')
-                break
-            
-            message_data = json.loads(decrypted_message)
-
-            # Decrypt the message
-            decrypted_message = cipher.decrypt((encrypted_message).decode())
-
-            print(f"Server sent this message: {decrypted_message}")
-
-            # Extract action and personnel data from message
-            action = message_data.get("action")
-            personnel = message_data.get("personnel")
-
-            # Perform action based on message content
-            if action == "SAVE":
-                save_personnel(personnel)
-            elif action == "DELETE":
-                delete_personnel(personnel)
-            else:
-                print("Unknown action received from server.")
-
-    except KeyboardInterrupt:
-        print("Client shutting down")
 
 # Main function to start the client
 def main():
@@ -117,9 +95,6 @@ def main():
 
         listen_thread = threading.Thread(target=listen_to_server, args=(client_socket,))
         listen_thread.start()
-
-        # while True:
-        #     handle_server_message(client_socket)
 
     except KeyboardInterrupt:
         print("Client shutting down")
