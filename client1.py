@@ -16,10 +16,6 @@ cipher = Fernet(fernet_key)
 
 CLIENT_DATABASE_FILE = "client_one_database.db"
 
-# Connect to the SQLite database
-conn = sqlite3.connect(CLIENT_DATABASE_FILE)
-cursor = conn.cursor()
-
 # Get server host and port from environment variables
 SERVER_HOST = os.getenv("SERVER_HOST")
 SERVER_PORT = int(os.getenv("SERVER_PORT"))
@@ -28,10 +24,29 @@ def listen_to_server(client_socket):
     try:
         while True:
             # Receive data from the server
-            data = client_socket.recv(1024).decode('utf-8')
-            if not data:
+            encrypted_message = client_socket.recv(1024)
+            if not encrypted_message:
+                print('Disconnected from server')
                 break
-            print("Server:", data)
+            # print("Server:", data)
+            decrypted_message = cipher.decrypt(encrypted_message)
+            decrypted_message_str = decrypted_message.decode()
+            message_dict = json.loads(decrypted_message_str)
+
+            print(f"message_dict {message_dict}")
+
+            action = message_dict.get("action")
+            personnel = message_dict.get("personnel")
+
+            print(f"action : {action} and {personnel}")
+            # Perform action based on message content
+            if action == "SAVE":
+                save_personnel(personnel)
+            elif action == "DELETE":
+                delete_personnel(personnel)
+            else:
+                print("Unknown action received from server.")
+
     except Exception as e:
         print("Error:", e)
     finally:
@@ -42,6 +57,9 @@ def save_personnel(personnel):
     name = personnel.get("name")
     surname = personnel.get("surname")
     ssn = personnel.get("ssn")
+
+    conn = sqlite3.connect(CLIENT_DATABASE_FILE)
+    cursor = conn.cursor()
 
     # Insert a new personnel record into the database
     cursor.execute("INSERT INTO personnel (NAME, SURNAME, SSN) VALUES (?, ?, ?)", (name, surname, ssn))
@@ -62,13 +80,15 @@ def handle_server_message(client_socket):
             # Receive encrypted message from server
             encrypted_message = client_socket.recv(1024)
             if not encrypted_message:
+                print('Disconnected from server')
                 break
             
-            # Decrypt the message
-            decrypted_message = cipher.decrypt(encrypted_message).decode()
-
-            # Parse JSON message
             message_data = json.loads(decrypted_message)
+
+            # Decrypt the message
+            decrypted_message = cipher.decrypt((encrypted_message).decode())
+
+            print(f"Server sent this message: {decrypted_message}")
 
             # Extract action and personnel data from message
             action = message_data.get("action")
@@ -98,8 +118,8 @@ def main():
         listen_thread = threading.Thread(target=listen_to_server, args=(client_socket,))
         listen_thread.start()
 
-        while True:
-            handle_server_message(client_socket)
+        # while True:
+        #     handle_server_message(client_socket)
 
     except KeyboardInterrupt:
         print("Client shutting down")

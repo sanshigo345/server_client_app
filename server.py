@@ -10,6 +10,8 @@ from cryptography.fernet import Fernet
 
 load_dotenv(override=True)
 
+connected_clients = []
+
 # Read the Fernet key from the file
 with open("fernet_key.key", "rb") as f:
     key = f.read()
@@ -86,26 +88,40 @@ def get_next_client_name(session):
         return None
 
 def send_message_to_client(message, client_host, client_port):
-    try:
-        # Create a socket object
-        client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+    for client_ip, client_port_number, client_socket in connected_clients:
+        if client_ip == client_host and client_port_number == client_port:
+            try:
+                message_json = json.dumps(message)
+                encrypted_message = fernet.encrypt(message_json.encode())
+                client_socket.send(encrypted_message)
+                print("Message sent successfully to client.")
+            except Exception as e:
+                print(f"Error sending message to client: {e}")    
+
+    # try:
+    #     # Create a socket object
+    #     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         
-        print(f"trying to connect to client {client_host}:{client_port}")
-        # Connect to the client
-        client_socket.connect((client_host, client_port))
+    #     print(f"trying to connect to client {client_host}:{client_port}")
+    #     # Connect to the client
+    #     client_socket.connect((client_host, client_port))
+    #     print("connect worked")
 
-        # Encrypt the message with Fernet
-        encrypted_message = fernet.encrypt(message.encode())
+    #     # Encrypt the message with Fernet
+    #     encrypted_message = fernet.encrypt(message.encode())
+    #     print("encrypted")
 
-        # Send the encrypted message to the client
-        client_socket.sendall(encrypted_message)
+    #     # Send the encrypted message to the client
+    #     client_socket.send(encrypted_message)
+        
 
-        print("Message sent successfully to client.")
-    except Exception as e:
-        print(f"Error sending message to client: {e}")
-    finally:
-        # Close the client socket
-        client_socket.close()
+    #     print("Message sent successfully to client.")
+    # except Exception as e:
+    #     print(f"Error sending message to client: {e}")
+    # finally:
+    #     # Close the client socket
+    #     client_socket.close()
 
 def accept_connections(server_socket):
     while True:
@@ -122,6 +138,7 @@ def handle_client(client_socket, client_address):
     client_port = client_address[1]
 
     print(f"Connection from {client_host} and {client_port}")
+    connected_clients.append((client_address[0], client_address[1], client_socket))
 
     session = Session()
 
@@ -155,6 +172,7 @@ def handle_client(client_socket, client_address):
         # Close the session and client socket
         session.close()
         client_socket.close()
+        connected_clients.remove((client_address[0], client_address[1], client_socket))
         print(f"Connection with {client_address} closed.")
         try:
             session.query(Client).filter_by(host=client_host, port=client_port).delete()
@@ -183,6 +201,7 @@ def send_specific_personnel_to_client():
                 personnel_surname = personnel.surname
                 client_port = client.port
                 client_host = client.host
+                print(f"intask1 {client_host} and {client_port}")
 
                 message = {
                     "action": "SAVE",
@@ -227,7 +246,7 @@ def send_specific_personnel_to_all_clients():
 
             # Construct the message to send to all clients
             message = {
-                "action": "SAVE",  # Assuming the action is to save the personnel
+                "action": "SAVE",
                 "personnel": {
                     "name": personnel_name,
                     "surname": personnel_surname,
