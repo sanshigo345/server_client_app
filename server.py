@@ -12,14 +12,11 @@ load_dotenv(override=True)
 
 connected_clients = []
 
-# Read the Fernet key from the file
 with open("fernet_key.key", "rb") as f:
     key = f.read()
 
-# Initialize the Fernet object with the key
 fernet = Fernet(key)
 
-# Get MySQL credentials from environment variables
 MYSQL_USERNAME = os.getenv("MYSQL_USERNAME")
 MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD")
 MYSQL_HOST = os.getenv("MYSQL_HOST")
@@ -31,7 +28,6 @@ SERVER_PORT = int(os.getenv("SERVER_PORT"))
 
 connection_string = f"mysql+mysqlconnector://{MYSQL_USERNAME}:{MYSQL_PASSWORD}@{MYSQL_HOST}:{MYSQL_PORT}/{MYSQL_DATABASE}"
 
-# Create SQLAlchemy engine and session
 engine = create_engine(connection_string)
 Session = sessionmaker(bind=engine)
 Base = declarative_base()
@@ -74,28 +70,24 @@ class Message(Base):
 
 def get_next_client_name(session):
     try:
-        # Query the clients table to get the maximum client ID
         max_id = session.query(func.max(Client.id)).scalar()
 
-        # If there are no clients in the database, start with 1
         if max_id is None:
             return "Client #1"
 
-        # Increment the maximum client ID to get the next client ID
         next_id = max_id + 1
 
-        # Check if the next ID is already taken by a disconnected client
         existing_client = session.query(Client).filter_by(id=next_id).first()
 
         if existing_client is None:
             return f"Client #{next_id}"
         else:
-            # Find the first available ID for the next client
             while True:
                 next_id += 1
                 existing_client = session.query(Client).filter_by(id=next_id).first()
                 if existing_client is None:
                     return f"Client #{next_id}"
+
     except SQLAlchemyError as e:
         print(f"Error occurred while getting next client name: {e}")
         return None
@@ -115,10 +107,8 @@ def send_message_to_client(message_json, client_host, client_port):
 
 def accept_connections(server_socket):
     while True:
-        # Accept incoming connection
         client_socket, client_address = server_socket.accept()
 
-        # Create a new thread to handle the client
         client_thread = threading.Thread(target=handle_client, args=(client_socket, client_address))
         client_thread.start()
 
@@ -133,13 +123,10 @@ def handle_client(client_socket, client_address):
     session = Session()
 
     try:
-        # Get the next client name
         client_name = get_next_client_name(session)
 
-        # Create a new Client object
         new_client = Client(name=client_name, host=client_host, port=client_port)
 
-        # Add the new client to the database session
         session.add(new_client)
         session.commit()
 
@@ -159,7 +146,6 @@ def handle_client(client_socket, client_address):
         session.rollback()
         print(f"Error occurred while adding client to the database: {e}")
     finally:
-        # Close the session and client socket
         session.close()
         client_socket.close()
         connected_clients.remove((client_address[0], client_address[1], client_socket))
@@ -222,7 +208,6 @@ def send_specific_personnel_to_client():
 
 def send_specific_personnel_to_all_clients():
     while True:
-        # Get personnel SSN from the user
         ssn = input("Enter personnel's SSN (ex: 123-45-6789): ")
 
         session = Session()
@@ -349,7 +334,6 @@ def delete_specific_personnel_from_client():
 
 def delete_specific_personnel_from_all_clients():
     while True:
-        # Get personnel SSN from the user
         ssn = input("Enter personnel's SSN (ex: 123-45-6789): ")
 
         session = Session()

@@ -6,24 +6,21 @@ import json
 from cryptography.fernet import Fernet
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(override=True)
 
 with open("fernet_key.key", "rb") as key_file:
     fernet_key = key_file.read()
 
-# Create a Fernet instance
 cipher = Fernet(fernet_key)
 
 CLIENT_DATABASE_FILE = "client_one_database.db"
 
-# Get server host and port from environment variables
 SERVER_HOST = os.getenv("SERVER_HOST")
 SERVER_PORT = int(os.getenv("SERVER_PORT"))
 
 def listen_to_server(client_socket):
     try:
         while True:
-            # Receive data from the server
             encrypted_message = client_socket.recv(1024)
             if not encrypted_message:
                 print('Disconnected from server')
@@ -37,7 +34,6 @@ def listen_to_server(client_socket):
             action = message_dict.get("action")
             personnel = message_dict.get("personnel")
 
-            # Perform action based on message content
             if action == "SAVE":
                 save_personnel(personnel)
             elif action == "DELETE":
@@ -59,7 +55,6 @@ def listen_to_server(client_socket):
     except Exception as e:
         print("Error:", e)
     finally:
-        # Close the socket when the server stops sending data
         client_socket.close()
 
 def save_personnel(personnel):
@@ -70,7 +65,6 @@ def save_personnel(personnel):
     conn = sqlite3.connect(CLIENT_DATABASE_FILE)
     cursor = conn.cursor()
 
-    # Insert a new personnel record into the database
     cursor.execute("INSERT INTO personnel (NAME, SURNAME, SSN) VALUES (?, ?, ?)", (name, surname, ssn))
     conn.commit()
     print(f"Personnel {name} {surname} saved successfully.")
@@ -83,13 +77,10 @@ def delete_personnel(personnel):
     cursor.execute("DELETE FROM personnel WHERE SSN = ?", (ssn,))
     conn.commit()
 
-# Main function to start the client
 def main():
     try:
-        # Create socket object
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        
-        # Connect to server
+
         client_socket.connect((SERVER_HOST, SERVER_PORT))
         print(f"Connected to server {SERVER_HOST}:{SERVER_PORT}")
 
