@@ -432,7 +432,7 @@ def main():
     try:
         while True:
             print("Available tasks:")
-            print("0. Check personnel table or clients table or messages table")
+            print("0. Display database")
             print("1. Send a specific personnel to a specific client.")
             print("2. Send a specific personnel to all clients.")
             print("3. Send all personnel to all clients.")

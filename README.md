@@ -25,13 +25,15 @@ Execute the following command to create empty or dummy databases for both the se
 Start the server by running:
 - ```python server.py```
 
-Run the client scripts in separate terminals, starting with client1.py and then client2.py:
--```python client1.py``` and ```python client2.py```
+Run the client scripts in separate terminals:
+- ```python client1.py```
+and 
+- ```python client2.py```
 
 ## Features
 
 - The server allows interaction with clients through various task options provided in server.py.
-0. Show personnel, clients and messages
+0. Display database
 1. Send a specific personnel to a specific client.
 2. Send a specific personnel to all clients.
 3. Send all personnel to all clients.
@@ -39,6 +41,7 @@ Run the client scripts in separate terminals, starting with client1.py and then 
 5. Delete a specific personnel from all clients.
 6. Delete all personnel from all clients.
 7. Exit.
+
 
 - The clients accepts these messages and manage their databases accordingly. Client tasks include:
 1. Save a personnel after receiving a save message from the server.
